@@ -2,12 +2,24 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 )
+
+type weatherStationStats struct {
+	min, max, sum int32
+	count         int
+}
+
+type weatherData struct {
+	data map[string]*weatherStationStats
+}
+
+func NewweatherData() weatherData {
+	return weatherData{data: make(map[string]*weatherStationStats)}
+}
 
 func parseTemperature(temp []byte) float64 {
 	negative := false
@@ -37,44 +49,61 @@ func parseTemperature(temp []byte) float64 {
 }
 
 func solution2(filePath string, output io.Writer) error {
+
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	weatherData := NewWeatherData()
+	weatherData := NewweatherData()
 
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		row := bytes.Split(line, []byte(";"))
 
-		if len(row) > 0 {
-			station := string(row[0])
-			tempBytes := row[1]
+		var temp int32
+		var delimeter int
+		end := len(line)
+		tenthsDigit := int32(line[end-1] - '0')
+		onesDigit := int32(line[end-3] - '0')
 
-			temp := parseTemperature(tempBytes)
+		if line[end-4] == ';' { // X.X temperature
+			temp = onesDigit*10 + tenthsDigit
+			delimeter = end - 4
+		} else if line[end-4] == '-' { // -X.X temperature
+			temp = -(onesDigit*10 + tenthsDigit)
+			delimeter = end - 5
+		} else {
+			tens := int32(line[end-4] - '0')
+			if line[end-5] == ';' { // XX.X temperature
+				temp = tens*100 + onesDigit*10 + tenthsDigit
+				delimeter = end - 5
+			} else { // -XX.X temperature
+				temp = -(tens*100 + onesDigit*10 + tenthsDigit)
+				delimeter = end - 6
+			}
+		}
+		station := string(line[:delimeter])
 
-			if stat := weatherData.data[station]; stat != nil {
-				if stat.min > temp {
-					stat.min = temp
-				}
+		if stat := weatherData.data[station]; stat != nil {
+			if stat.min > temp {
+				stat.min = temp
+			}
 
-				if stat.max < temp {
-					stat.max = temp
-				}
+			if stat.max < temp {
+				stat.max = temp
+			}
 
-				stat.count++
-				stat.sum += temp
-			} else {
-				weatherData.data[station] = &WeatherStationStats{
-					min:   temp,
-					max:   temp,
-					count: 1,
-					sum:   temp,
-				}
+			stat.count++
+			stat.sum += temp
+		} else {
+			weatherData.data[station] = &weatherStationStats{
+				min:   temp,
+				max:   temp,
+				count: 1,
+				sum:   temp,
 			}
 		}
 	}
@@ -96,8 +125,11 @@ func solution2(filePath string, output io.Writer) error {
 		}
 
 		stat := weatherData.data[station]
-		mean := stat.sum / float64(stat.count)
-		fmt.Fprintf(output, "%s=%.1f/%.1f/%.1f", station, stat.min, mean, stat.max)
+		mean := float64(stat.sum) / float64(stat.count) / 10
+		fmt.Fprintf(
+			output,
+			"%s=%.1f/%.1f/%.1f",
+			station, float64(stat.min)/10, mean, float64(stat.max)/10)
 	}
 	fmt.Fprintln(output, "}")
 	return nil
