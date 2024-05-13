@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime/pprof"
 	"time"
 )
 
@@ -53,7 +54,14 @@ func benchmark(filePath string) error {
 
 func main() {
 	var filePath string
+	var cpuProfilePath string
+	var solution int
+
+	var err error
+
 	flag.StringVar(&filePath, "file", "", "Path to the weather station data file")
+	flag.StringVar(&cpuProfilePath, "cpu_profile", "", "Path to save CPU profile to")
+	flag.IntVar(&solution, "solution", 0, "Solution to run")
 	flag.Parse()
 
 	if filePath == "" {
@@ -62,8 +70,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	err := benchmark(filePath)
-	if err != nil {
-		log.Fatalln(err)
+	if cpuProfilePath != "" {
+		profileFile, err := os.Create(cpuProfilePath)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		pprof.StartCPUProfile(profileFile)
+		defer pprof.StopCPUProfile()
+	}
+
+	switch {
+	case solution == 0:
+		err = benchmark(filePath)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	case solution < 1 || solution > len(solutions):
+		fmt.Fprintf(
+			os.Stderr,
+			"Error: Invalid solution, should be between 1 and %d\n",
+			len(solutions))
+		os.Exit(1)
+	default:
+		start := time.Now()
+		var output bytes.Buffer
+		solFunc := solutions[solution-1]
+		err = solFunc(filePath, &output)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		elapsed := time.Since(start)
+
+		fmt.Fprintf(
+			os.Stdout,
+			"Solution%d ran in %s\n",
+			solution, elapsed,
+		)
 	}
 }
