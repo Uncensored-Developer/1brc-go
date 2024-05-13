@@ -14,7 +14,7 @@ import (
 
 type solutionFunc func(string, io.Writer) error
 
-var solutions = []solutionFunc{solution1}
+var solutions = []solutionFunc{solution1, solution2}
 
 func benchmark(filePath string) error {
 	const MaxTries = 5
