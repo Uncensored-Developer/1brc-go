@@ -99,6 +99,6 @@ func solution2(filePath string, output io.Writer) error {
 		mean := stat.sum / float64(stat.count)
 		fmt.Fprintf(output, "%s=%.1f/%.1f/%.1f", station, stat.min, mean, stat.max)
 	}
-	fmt.Fprintln(output, "}\n")
+	fmt.Fprintln(output, "}")
 	return nil
 }
