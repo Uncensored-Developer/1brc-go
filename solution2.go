@@ -37,6 +37,15 @@ func parseTemperature(temp []byte) float64 {
 
 func solution2(filePath string, output io.Writer) error {
 
+	type hashTable struct {
+		key   []byte
+		value *WeatherStationStats
+	}
+
+	const bucketsCount = 1 << 17 // number of hash buckets (power of 2)
+	items := make([]hashTable, bucketsCount)
+	size := 0
+
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0666)
 	if err != nil {
 		return err
@@ -67,8 +76,27 @@ func solution2(filePath string, output io.Writer) error {
 		chunk = chunk[:nl+1]
 
 		for {
-			station, tempBytes, hasDelimeter := bytes.Cut(chunk, []byte(";"))
-			if !hasDelimeter {
+			// FNV-1 constants from hash/fnv
+			const (
+				offset64 = 14695981039346656037
+				prime64  = 1099511628211
+			)
+
+			// Hash the station name and look for ';'
+			var station, tempBytes []byte
+			hash := uint64(offset64)
+			i := 0
+			for ; i < len(chunk); i++ {
+				c := chunk[i]
+				if c == ';' {
+					station = chunk[:i]
+					tempBytes = chunk[i+1:]
+					break
+				}
+				hash ^= uint64(c)
+				hash *= prime64
+			}
+			if i == len(chunk) {
 				break
 			}
 
@@ -98,30 +126,51 @@ func solution2(filePath string, output io.Writer) error {
 			}
 			chunk = tempBytes[idx:]
 
-			if stat := weatherData.data[string(station)]; stat != nil {
-				if stat.min > tempFlt {
-					stat.min = tempFlt
+			hashIdx := int(hash & uint64(bucketsCount-1))
+			for {
+				if items[hashIdx].key == nil {
+					// Found an empty slot, add new item
+					key := make([]byte, len(station))
+					copy(key, station)
+
+					items[hashIdx] = hashTable{
+						key: key,
+						value: &WeatherStationStats{
+							min:   tempFlt,
+							max:   tempFlt,
+							sum:   tempFlt,
+							count: 1,
+						},
+					}
+					size++
+
+					//if size > bucketsCount/2 {
+					//	panic("hash table overflow")
+					//}
+					break
 				}
 
-				if stat.max < tempFlt {
-					stat.max = tempFlt
+				if bytes.Equal(items[hashIdx].key, station) {
+					// Found matching slot, update stats
+					stat := items[hashIdx].value
+					stat.min = min(stat.min, tempFlt)
+					stat.max = max(stat.max, tempFlt)
+					stat.sum += tempFlt
+					stat.count++
+					break
 				}
 
-				stat.count++
-				stat.sum += tempFlt
-			} else {
-				weatherData.data[string(station)] = &WeatherStationStats{
-					min:   tempFlt,
-					max:   tempFlt,
-					count: 1,
-					sum:   tempFlt,
+				// Another key already in slot, try next slot (linear probe)
+				hashIdx++
+				if hashIdx >= bucketsCount {
+					hashIdx = 0
 				}
 			}
 		}
 		start = copy(buf, left)
 	}
 
-	weatherStations := make([]string, 0, len(weatherData.data))
+	weatherStations := make([]string, 0, size)
 	for station := range weatherData.data {
 		weatherStations = append(weatherStations, station)
 	}
