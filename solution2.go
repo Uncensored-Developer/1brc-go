@@ -1,25 +1,12 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 )
-
-type weatherStationStats struct {
-	min, max, sum int32
-	count         int
-}
-
-type weatherData struct {
-	data map[string]*weatherStationStats
-}
-
-func NewweatherData() weatherData {
-	return weatherData{data: make(map[string]*weatherStationStats)}
-}
 
 func parseTemperature(temp []byte) float64 {
 	negative := false
@@ -56,60 +43,82 @@ func solution2(filePath string, output io.Writer) error {
 	}
 	defer file.Close()
 
-	weatherData := NewweatherData()
+	weatherData := NewWeatherData()
 
-	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 1024*1024) // allocate 1MB buffer to store file chunks
+	start := 0
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
+	for {
+		nb, err := file.Read(buf[start:])
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if start+nb == 0 {
+			break
+		}
+		chunk := buf[:start+nb]
 
-		var temp int32
-		var delimeter int
-		end := len(line)
-		tenthsDigit := int32(line[end-1] - '0')
-		onesDigit := int32(line[end-3] - '0')
+		nl := bytes.LastIndexByte(chunk, '\n')
+		if nl < 0 {
+			break
+		}
 
-		if line[end-4] == ';' { // X.X temperature
-			temp = onesDigit*10 + tenthsDigit
-			delimeter = end - 4
-		} else if line[end-4] == '-' { // -X.X temperature
-			temp = -(onesDigit*10 + tenthsDigit)
-			delimeter = end - 5
-		} else {
-			tens := int32(line[end-4] - '0')
-			if line[end-5] == ';' { // XX.X temperature
-				temp = tens*100 + onesDigit*10 + tenthsDigit
-				delimeter = end - 5
-			} else { // -XX.X temperature
-				temp = -(tens*100 + onesDigit*10 + tenthsDigit)
-				delimeter = end - 6
+		left := chunk[nl+1:]
+		chunk = chunk[:nl+1]
+
+		for {
+			station, tempBytes, hasDelimeter := bytes.Cut(chunk, []byte(";"))
+			if !hasDelimeter {
+				break
+			}
+
+			//var temp float64
+			negative := false
+			idx := 0
+
+			if tempBytes[idx] == '-' {
+				negative = true
+				idx++
+			}
+
+			// Parse the first digit
+			tempFlt := float64(tempBytes[idx] - '0')
+			idx++
+
+			// Parse the second digit (optional).
+			if tempBytes[idx] != '.' {
+				tempFlt = tempFlt*10 + float64(tempBytes[idx]-'0')
+				idx++
+			}
+			idx++
+
+			tempFlt += float64(tempBytes[idx]-'0') / 10 // convert to decimal
+			if negative {
+				tempFlt = -tempFlt
+			}
+			chunk = tempBytes[idx:]
+
+			if stat := weatherData.data[string(station)]; stat != nil {
+				if stat.min > tempFlt {
+					stat.min = tempFlt
+				}
+
+				if stat.max < tempFlt {
+					stat.max = tempFlt
+				}
+
+				stat.count++
+				stat.sum += tempFlt
+			} else {
+				weatherData.data[string(station)] = &WeatherStationStats{
+					min:   tempFlt,
+					max:   tempFlt,
+					count: 1,
+					sum:   tempFlt,
+				}
 			}
 		}
-		station := string(line[:delimeter])
-
-		if stat := weatherData.data[station]; stat != nil {
-			if stat.min > temp {
-				stat.min = temp
-			}
-
-			if stat.max < temp {
-				stat.max = temp
-			}
-
-			stat.count++
-			stat.sum += temp
-		} else {
-			weatherData.data[station] = &weatherStationStats{
-				min:   temp,
-				max:   temp,
-				count: 1,
-				sum:   temp,
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return err
+		start = copy(buf, left)
 	}
 
 	weatherStations := make([]string, 0, len(weatherData.data))
@@ -125,11 +134,11 @@ func solution2(filePath string, output io.Writer) error {
 		}
 
 		stat := weatherData.data[station]
-		mean := float64(stat.sum) / float64(stat.count) / 10
+		mean := stat.sum / float64(stat.count)
 		fmt.Fprintf(
 			output,
 			"%s=%.1f/%.1f/%.1f",
-			station, float64(stat.min)/10, mean, float64(stat.max)/10)
+			station, stat.min, mean, stat.max)
 	}
 	fmt.Fprintln(output, "}")
 	return nil
