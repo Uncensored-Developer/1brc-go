@@ -79,7 +79,7 @@ func splitFile(filePath string, count int) ([]fileChunk, error) {
 	return chunks, nil
 }
 
-func processChuck(filePath string, fileOffset, fileSize int64, resultChan chan map[string]*WeatherStationStats) {
+func processChuckS1(filePath string, fileOffset, fileSize int64, resultChan chan map[string]*WeatherStationStats) {
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0666)
 	if err != nil {
 		panic(err)
@@ -141,7 +141,7 @@ func solution3(filePath string, output io.Writer) error {
 
 	resultsChan := make(chan map[string]*WeatherStationStats)
 	for _, chunk := range chunks {
-		go processChuck(filePath, chunk.offset, chunk.size, resultsChan)
+		go processChuckS1(filePath, chunk.offset, chunk.size, resultsChan)
 	}
 
 	weatherData := make(map[string]*WeatherStationStats)
