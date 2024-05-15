@@ -31,8 +31,6 @@ func processChuckS2(filePath string, fileOffset, fileSize int64, resultChan chan
 	}
 	flr := io.LimitedReader{R: file, N: fileSize}
 
-	//weatherData := NewWeatherData()
-
 	buf := make([]byte, 1024*1024) // allocate 1MB buffer to store file chunks
 	start := 0
 

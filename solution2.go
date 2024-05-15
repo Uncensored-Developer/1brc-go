@@ -100,7 +100,6 @@ func solution2(filePath string, output io.Writer) error {
 				break
 			}
 
-			//var temp float64
 			negative := false
 			idx := 0
 
@@ -143,10 +142,6 @@ func solution2(filePath string, output io.Writer) error {
 						},
 					}
 					size++
-
-					//if size > bucketsCount/2 {
-					//	panic("hash table overflow")
-					//}
 					break
 				}
 
