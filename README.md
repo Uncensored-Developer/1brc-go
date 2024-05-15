@@ -7,6 +7,8 @@ I started with a simple unoptimised solution (solution1.go) which takes 2.24 min
 * These results were produced on my PC (32GB RAM, 16 core CPU, linux/amd64)
 * The major focus was on optimising the solution not necessarily following proper standards.
 
+Here is my [article](https://medium.com/@osezele.o/the-1-billion-rows-challenge-golang-from-2m24s-to-6-32s-919e3a690a3b) on this for more details and results.
+
 ## USAGE
 
 * Run and benchmark all solutions
